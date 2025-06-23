@@ -2,9 +2,14 @@ import math,time,random
 
 import asyncio,websockets
 import webbrowser
-import glob
+
+import glob,os
+
+from PIL import Image
 import numpy as np
 import cv2
+
+from warnings import warn
 
 SCALE = ' .\'`^",:;Il!i~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$'
 
@@ -13,7 +18,33 @@ PORT = 8080
 
 bwr_open = False
 
-i_time = time.time()
+global duration
+
+def gif_to_frames(gif_path, output_dir="_frames"):
+
+    try:
+        gif = Image.open(gif_path)
+    except FileNotFoundError:
+        print(f"Error: GIF file not found at {gif_path}")
+        return
+
+    try:
+        gif.seek(0)  # Go to the first frame
+    except EOFError:
+        print("Error: GIF has no frames")
+        return
+
+    frame_num = 0
+    while True:
+        try:
+            frame = gif.copy()  # Make a copy to avoid modifying the original GIF
+            frame.save(f"{output_dir}/frame_{frame_num:03d}.png")  # Save as PNG
+            frame_num += 1
+            gif.seek(gif.tell() + 1)  # Move to the next frame
+        except EOFError:
+            break  # Exit loop when no more frames
+
+    return gif
 
 def grab_a_pic(index):
     files = glob.glob("_frames/*.png")
@@ -23,9 +54,12 @@ def grab_a_pic(index):
     img_sp = cv2.imread(fil)
     return asciify(img_sp)
 
-def asciify(img):
+def asciify(img,eqHist=False):
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    if eqHist:
+        gray = cv2.equalizeHist(gray)
 
     sx,sy = np.shape(gray)
     maxS = max([sx,sy])
@@ -44,22 +78,41 @@ def asciify(img):
 
 async def handle_client(websocket):
 
+    global duration
+
     try:
         async for message in websocket:
             print(message)
-            msg = grab_a_pic(int(message))
+
+            if duration != None:
+                msg =  '§' + str(duration)
+                duration = None
+            else:
+                msg = grab_a_pic(int(message))
             await websocket.send(msg)
 
     except websockets.exceptions.ConnectionClosed:
         pass
 
 async def main():
+    global duration
+    
+    prev_fs = glob.glob("_frames/*")
+    for f in prev_fs:
+        os.remove(f)
 
-    server = await websockets.serve(handle_client, HOST, PORT)
+    g_imgs = glob.glob("*.gif")
 
-    webbrowser.open("websocket_test.html")
+    if len(g_imgs)>0:
+        gifImage = g_imgs[0]
+        gif = gif_to_frames(gifImage)
+        duration = gif.info['duration']
 
-    await server.wait_closed()
+        server = await websockets.serve(handle_client, HOST, PORT)
+        webbrowser.open("anim.html")
+        await server.wait_closed()
+    else:
+        warn("NO GIF!")
 
 if __name__ == "__main__":
     asyncio.run(main())
