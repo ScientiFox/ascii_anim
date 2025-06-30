@@ -1,3 +1,5 @@
+![image](https://github.com/user-attachments/assets/13769114-736b-4231-af1b-5fd7966f822b)
+
 This is a little project for fun that animates an ascii gif in a browser window.
 
 It's a python server that opens up a gif, partitions it into individual images, converts those to ACSII levels, and then sends those over to a JS script in the browser that displays them, synced with their original gif duration.
